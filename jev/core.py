@@ -5,7 +5,7 @@ from typing import Callable
 
 from .config import JevConfig
 from .errors import InvalidProviderResponse, ProviderError, RequestValidationError
-from .models import DecisionRequest, DecisionResult, ProviderDecision
+from .models import DecisionRequest, DecisionResult, ProviderDecision, RankResult
 from .routing import build_providers
 from .telemetry import Telemetry
 
@@ -95,3 +95,31 @@ class JevCore:
     def ready(self) -> bool:
         default = self.providers.get(self.config.routing.default)
         return default is not None and bool(default.health())
+
+    def evaluate(self, request: DecisionRequest) -> DecisionResult:
+        return self.decide(request)
+
+    def enough(self, request: DecisionRequest) -> DecisionResult:
+        if not request.choices:
+            request = DecisionRequest(request.decision, request.goal, request.state, ("sufficient", "insufficient", "contradictory"), request.criteria, request.metadata, request.accept_threshold)
+        return self.decide(request)
+
+    def rank(self, request: DecisionRequest, items: list[dict]) -> RankResult:
+        request.validate()
+        if not isinstance(items, list) or not items or any(not isinstance(item, dict) or "id" not in item for item in items):
+            raise RequestValidationError("rank requires a non-empty list of items with ids")
+        provider_names = [self.config.routing.default, *self.config.routing.technical_fallback]
+        errors: list[str] = []
+        for provider_name in dict.fromkeys(provider_names):
+            provider = self.providers.get(provider_name)
+            if provider is None:
+                continue
+            try:
+                result = provider.rank(request, items)
+                ids = {str(item["id"]) for item in items}
+                if {str(item.get("id")) for item in result.ranking} != ids:
+                    raise InvalidProviderResponse("ranking must contain exactly the requested item ids")
+                return RankResult(result.ranking, provider_name, bool(errors))
+            except ProviderError as exc:
+                errors.append(f"{provider_name}:{type(exc).__name__}")
+        return RankResult([], None, True)

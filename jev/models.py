@@ -81,3 +81,13 @@ class DecisionResult:
             "fallback_reason": self.fallback_reason,
             "agent_fallback": self.agent_fallback,
         }
+
+
+@dataclass(frozen=True)
+class RankResult:
+    ranking: list[dict[str, Any]]
+    provider: str | None = None
+    fallback_used: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"ranking": self.ranking, "provider": self.provider, "fallback_used": self.fallback_used}
