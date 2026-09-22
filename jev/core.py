@@ -105,7 +105,8 @@ class JevCore:
         statuses: dict[str, dict] = {}
         for name, provider in self.providers.items():
             try:
-                statuses[name] = provider.status()
+                status_method = getattr(provider, "status", None)
+                statuses[name] = status_method() if status_method else {"status": "ready" if provider.health() else "not_ready", "model": getattr(provider, "model", None)}
             except Exception as exc:
                 statuses[name] = {"status": "not_ready", "error": str(exc)}
         default = statuses.get(self.config.routing.default, {})

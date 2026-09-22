@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import sys
+import time
 import urllib.request
 from pathlib import Path
 
@@ -14,6 +16,7 @@ from .http_api import create_server
 from .interfaces import invoke
 from .mcp import run_stdio
 from .mcp_http import create_mcp_server
+from .models import DecisionRequest
 
 
 def _config_path(value: str | None) -> str:
@@ -53,6 +56,52 @@ def _add_request_arguments(parser: argparse.ArgumentParser, *, choices_required:
     parser.add_argument("--threshold", type=float)
 
 
+def _provider_diagnostics(provider: object) -> dict:
+    diagnostics = getattr(provider, "diagnostics", None)
+    if diagnostics:
+        return diagnostics()
+    started = time.perf_counter()
+    healthy = bool(provider.health())
+    result = {"status": "ok" if healthy else "error", "model": getattr(provider, "model", None), "latency_ms": int((time.perf_counter() - started) * 1000)}
+    return result
+
+
+def _benchmark(provider_name: str, provider: object, runs: int, warmup: int) -> dict:
+    if runs < 1 or warmup < 0:
+        raise ConfigurationError("benchmark runs must be positive and warmup cannot be negative")
+    request = DecisionRequest("benchmark", "select the most appropriate bounded action", {"source": "benchmark"}, ("continue", "conclude"))
+    for _ in range(warmup):
+        provider.decide(request)
+    latencies: list[float] = []
+    successes = 0
+    for _ in range(runs):
+        started = time.perf_counter()
+        try:
+            provider.decide(request)
+            successes += 1
+        except Exception:
+            pass
+        latencies.append((time.perf_counter() - started) * 1000)
+    values = sorted(latencies)
+    percentile = lambda fraction: values[max(0, min(len(values) - 1, math.ceil(fraction * len(values)) - 1))]
+    config = getattr(provider, "config", None)
+    return {
+        "provider": provider_name,
+        "model": getattr(provider, "model", None),
+        "device": getattr(config, "device", None),
+        "runs": runs,
+        "warmup": warmup,
+        "latency_ms": {
+            "mean": sum(values) / len(values),
+            "p50": percentile(0.50),
+            "p95": percentile(0.95),
+            "min": min(values),
+            "max": max(values),
+        },
+        "success_rate": successes / runs,
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="jev")
     parser.add_argument("--config", help="YAML config path; defaults to JEV_CONFIG or config/jev.yaml")
@@ -75,7 +124,16 @@ def build_parser() -> argparse.ArgumentParser:
     doctor.add_argument("--network", action="store_true", help="also check provider readiness")
     providers = sub.add_parser("providers")
     providers.add_argument("--config", dest="config_path")
-    providers.add_argument("action", choices=("test", "list-models"))
+    provider_sub = providers.add_subparsers(dest="provider_command", required=True)
+    provider_test = provider_sub.add_parser("test")
+    provider_test.add_argument("provider_name", nargs="?")
+    provider_sub.add_parser("list")
+    provider_sub.add_parser("list-models")
+    benchmark = sub.add_parser("benchmark")
+    benchmark.add_argument("provider_name")
+    benchmark.add_argument("--config", dest="config_path")
+    benchmark.add_argument("--runs", type=int, default=20)
+    benchmark.add_argument("--warmup", type=int, default=3)
     health = sub.add_parser("health")
     health.add_argument("--url", default="http://127.0.0.1:8080/health")
     serve = sub.add_parser("serve")
@@ -115,10 +173,29 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(value))
             return 0 if value.get("status") == "ok" else 1
         if args.command == "providers":
-            if args.action == "test":
-                print(json.dumps({name: provider.health() for name, provider in core.providers.items()}))
+            if args.provider_command == "test":
+                if args.provider_name:
+                    provider = core.providers.get(args.provider_name)
+                    if provider is None:
+                        raise ConfigurationError(f"unknown provider: {args.provider_name}")
+                    result = {"provider": args.provider_name, **_provider_diagnostics(provider)}
+                    print(json.dumps(result))
+                    return 0 if result["status"] == "ok" else 1
+                print(json.dumps({name: _provider_diagnostics(provider) for name, provider in core.providers.items()}))
+            elif args.provider_command == "list":
+                statuses = {}
+                for name, provider_config in core.config.providers.items():
+                    provider = core.providers.get(name)
+                    statuses[name] = {"status": "disabled", "model": provider_config.model} if provider is None else provider.status()
+                print(json.dumps(statuses))
             else:
                 print(json.dumps({name: provider.list_models() for name, provider in core.providers.items()}))
+            return 0
+        if args.command == "benchmark":
+            provider = core.providers.get(args.provider_name)
+            if provider is None:
+                raise ConfigurationError(f"unknown provider: {args.provider_name}")
+            print(json.dumps(_benchmark(args.provider_name, provider, args.runs, args.warmup)))
             return 0
         if args.command == "mcp":
             run_stdio(core)
