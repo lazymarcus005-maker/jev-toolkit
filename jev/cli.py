@@ -28,6 +28,10 @@ def _core(path: str | None, *, require_credentials: bool = False) -> JevCore:
     return JevCore(config)
 
 
+def _requested_config(args: argparse.Namespace) -> str | None:
+    return getattr(args, "config_path", None) or args.config
+
+
 def _request_args(args: argparse.Namespace) -> dict:
     state = json.loads(Path(args.state).read_text()) if args.state else {}
     choices = [value.strip() for value in args.choices.split(",") if value.strip()] if args.choices else []
@@ -40,6 +44,7 @@ def _request_args(args: argparse.Namespace) -> dict:
 
 
 def _add_request_arguments(parser: argparse.ArgumentParser, *, choices_required: bool = True) -> None:
+    parser.add_argument("--config", dest="config_path")
     parser.add_argument("--decision", required=True)
     parser.add_argument("--goal", required=True)
     parser.add_argument("--state", help="JSON state file")
@@ -56,7 +61,7 @@ def build_parser() -> argparse.ArgumentParser:
         child = sub.add_parser(command)
         _add_request_arguments(child, choices_required=command != "enough")
     rank = sub.add_parser("rank")
-    _add_request_arguments(rank)
+    _add_request_arguments(rank, choices_required=False)
     rank.add_argument("--items", required=True, help="JSON items file")
     validate = sub.add_parser("config-validate")
     validate.add_argument("--require-credentials", action="store_true")
@@ -66,14 +71,18 @@ def build_parser() -> argparse.ArgumentParser:
     config_validate.add_argument("--require-credentials", action="store_true")
     config_validate.add_argument("--config", dest="config_path")
     doctor = sub.add_parser("doctor")
+    doctor.add_argument("--config", dest="config_path")
     doctor.add_argument("--network", action="store_true", help="also check provider readiness")
     providers = sub.add_parser("providers")
+    providers.add_argument("--config", dest="config_path")
     providers.add_argument("action", choices=("test", "list-models"))
     health = sub.add_parser("health")
     health.add_argument("--url", default="http://127.0.0.1:8080/health")
     serve = sub.add_parser("serve")
+    serve.add_argument("--config", dest="config_path")
     serve.add_argument("--no-mcp", action="store_true")
     mcp = sub.add_parser("mcp")
+    mcp.add_argument("--config", dest="config_path")
     mcp.add_argument("--stdio", action="store_true", default=True)
     return parser
 
@@ -82,13 +91,13 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         if args.command == "config-validate" or (args.command == "config" and args.config_command == "validate"):
-            config = load_config(_config_path(getattr(args, "config_path", None) or args.config))
+            config = load_config(_config_path(_requested_config(args)))
             problems = config.validate(require_credentials=args.require_credentials)
             if problems:
                 raise ConfigurationError("; ".join(problems))
             print(json.dumps({"valid": True}))
             return 0
-        core = _core(args.config)
+        core = _core(_requested_config(args))
         if args.command in {"decide", "evaluate", "enough"}:
             print(json.dumps(invoke(core, args.command, _request_args(args))))
             return 0

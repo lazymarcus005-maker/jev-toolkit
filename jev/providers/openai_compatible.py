@@ -6,7 +6,7 @@ from typing import Any
 
 from ..config import ProviderConfig
 from ..errors import InvalidProviderResponse, UnsupportedChoice
-from ..models import DecisionRequest, ProviderDecision
+from ..models import DecisionRequest, ProviderDecision, RankResult
 from .base import DecisionProvider
 from .http import request_json
 
@@ -69,6 +69,36 @@ class OpenAICompatibleProvider(DecisionProvider):
         if not isinstance(confidence, (int, float)) or isinstance(confidence, bool):
             raise InvalidProviderResponse("provider confidence is not numeric")
         return ProviderDecision(choice=choice, confidence=float(confidence), model=result.get("model") or self.config.model)
+
+    def rank(self, request: DecisionRequest, items: list[dict[str, Any]]) -> RankResult:
+        body = {
+            "model": self.config.model,
+            "temperature": 0,
+            "messages": [
+                {"role": "system", "content": "You are a bounded ranking classifier. Return JSON only with ranking, an array containing every requested id exactly once and a score from 0 to 1."},
+                {"role": "user", "content": json.dumps({"goal": request.goal, "state": request.state, "items": items}, separators=(",", ":"))},
+            ],
+            "response_format": {"type": "json_object"},
+        }
+        result = request_json(f"{self.config.base_url}/chat/completions", method="POST", headers=self._headers(), payload=body, timeout_ms=self.config.timeout_ms)
+        try:
+            answer = _content_json(result["choices"][0]["message"]["content"])
+            ranking = answer["ranking"]
+        except (KeyError, IndexError, TypeError) as exc:
+            raise InvalidProviderResponse("chat completion has no ranking") from exc
+        if not isinstance(ranking, list):
+            raise InvalidProviderResponse("ranking must be an array")
+        expected = {str(item["id"]) for item in items}
+        actual = {str(item.get("id")) for item in ranking if isinstance(item, dict)}
+        if actual != expected or len(actual) != len(ranking):
+            raise InvalidProviderResponse("ranking must contain each requested id exactly once")
+        normalized = []
+        for item in ranking:
+            score = item.get("score")
+            if not isinstance(score, (int, float)) or isinstance(score, bool) or not 0 <= float(score) <= 1:
+                raise InvalidProviderResponse("ranking scores must be between 0 and 1")
+            normalized.append({"id": str(item["id"]), "score": float(score)})
+        return RankResult(normalized, result.get("model") or self.config.model)
 
     def health(self) -> bool:
         return bool(self.config.base_url and self.config.model and self.config.api_key)

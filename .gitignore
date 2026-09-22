@@ -2,6 +2,6 @@
 __pycache__/
 .pytest_cache/
 *.py[cod]
-.egg-info/
+*.egg-info/
 .env
 config/jev.yaml

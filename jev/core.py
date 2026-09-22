@@ -105,9 +105,11 @@ class JevCore:
         return self.decide(request)
 
     def rank(self, request: DecisionRequest, items: list[dict]) -> RankResult:
-        request.validate()
         if not isinstance(items, list) or not items or any(not isinstance(item, dict) or "id" not in item for item in items):
             raise RequestValidationError("rank requires a non-empty list of items with ids")
+        if not request.choices:
+            request = DecisionRequest(request.decision, request.goal, request.state, tuple(str(item["id"]) for item in items), request.criteria, request.metadata, request.accept_threshold)
+        request.validate()
         provider_names = [self.config.routing.default, *self.config.routing.technical_fallback]
         errors: list[str] = []
         for provider_name in dict.fromkeys(provider_names):
