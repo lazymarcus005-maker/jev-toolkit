@@ -5,6 +5,7 @@ from jev.cli import build_parser
 from jev.config import JevConfig, ProviderConfig, RoutingConfig, TelemetryConfig
 from jev.core import JevCore
 from jev.models import DecisionRequest, ProviderDecision
+from jev.cli import _benchmark
 from jev.providers.laya import LayaLocalProvider
 
 
@@ -45,3 +46,17 @@ def test_cli_supports_laya_diagnostics_and_benchmark_commands():
     assert args.command == "benchmark"
     assert args.runs == 4
     assert args.warmup == 1
+
+
+def test_benchmark_reports_runtime_distribution():
+    class Provider:
+        model = "typed-decisions"
+        config = type("Config", (), {"device": "cpu"})()
+
+        def decide(self, request):
+            return ProviderDecision("continue", 0.9, self.model)
+
+    result = _benchmark("laya", Provider(), runs=4, warmup=1)
+    assert result["provider"] == "laya"
+    assert result["success_rate"] == 1.0
+    assert set(result["latency_ms"]) == {"mean", "p50", "p95", "min", "max"}

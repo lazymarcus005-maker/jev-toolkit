@@ -4,7 +4,7 @@ import time
 import pytest
 
 from jev.config import ProviderConfig
-from jev.errors import InvalidProviderResponse, UnsupportedChoice
+from jev.errors import InvalidProviderResponse, ProviderError, UnsupportedChoice
 from jev.models import DecisionRequest
 from jev.providers.laya import LayaLocalProvider
 
@@ -115,3 +115,10 @@ def test_missing_answer_is_rejected():
     provider = LayaLocalProvider(config(), loader=lambda cfg: MissingModel())
     with pytest.raises(InvalidProviderResponse):
         provider.decide(request())
+
+
+def test_model_load_failure_is_not_reported_as_lazy_ready():
+    provider = LayaLocalProvider(config(), loader=lambda cfg: (_ for _ in ()).throw(RuntimeError("weights unavailable")))
+    with pytest.raises(ProviderError):
+        provider.decide(request())
+    assert provider.status()["status"] == "not_ready"

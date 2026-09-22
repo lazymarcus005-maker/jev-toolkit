@@ -118,7 +118,7 @@ class LayaLocalProvider(DecisionProvider):
     def status(self) -> dict[str, Any]:
         if self._model is not None:
             state = "ready"
-        elif self._load_error and self.config.preload:
+        elif self._load_error:
             state = "not_ready"
         elif self._injected_loader or importlib.util.find_spec("laya") is not None:
             state = "lazy"
