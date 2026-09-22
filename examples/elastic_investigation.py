@@ -1,4 +1,4 @@
-"""Executable, provider-free illustration of the Elastic/Jev integration pattern."""
+"""Executable illustration of the Elastic MCP + local Laya integration pattern."""
 
 from __future__ import annotations
 
@@ -6,7 +6,8 @@ from dataclasses import dataclass
 
 from jev.config import JevConfig, ProviderConfig, RoutingConfig, TelemetryConfig
 from jev.core import JevCore
-from jev.models import DecisionRequest, ProviderDecision
+from jev.models import DecisionRequest
+from jev.providers.laya import LayaLocalProvider
 
 
 @dataclass
@@ -24,27 +25,29 @@ class SimulatedElastic:
         return {"action": action, **item}
 
 
-class ScriptedProvider:
-    name = "example"
-    model = "scripted"
+class ScriptedLayaModel:
+    """Test double for Laya's predict API; no model weights are downloaded."""
 
     def __init__(self):
         self.actions = iter(("inspect_instance", "inspect_downstream", "inspect_deployment"))
+        self.states: list[dict] = []
 
-    def decide(self, request: DecisionRequest) -> ProviderDecision:
-        return ProviderDecision(next(self.actions), 0.91, self.model)
-
-    def health(self) -> bool:
-        return True
+    def predict(self, state, questions, **kwargs):
+        self.states.append(state)
+        decision = next(self.actions)
+        decision_name = next(iter(questions))
+        return {"answers": {decision_name: {"type": "choice", "choice": decision, "confidence": 0.91}}}
 
 
 def run_three_round_example() -> list[dict]:
     config = JevConfig(
-        providers={"example": ProviderConfig("example", "typesafe", base_url="http://example")},
-        routing=RoutingConfig("example"),
+        providers={"laya": ProviderConfig("laya", "laya", model="typed-decisions", device="cpu")},
+        routing=RoutingConfig("laya"),
         telemetry=TelemetryConfig(enabled=False),
     )
-    core = JevCore(config, providers={"example": ScriptedProvider()})
+    laya_model = ScriptedLayaModel()
+    laya = LayaLocalProvider(config.providers["laya"], loader=lambda _: laya_model)
+    core = JevCore(config, providers={"laya": laya})
     elastic = SimulatedElastic()
     state = {"goal": "identify root cause of payment 500 spike", "findings": [], "completed_checks": []}
     rounds = []
@@ -59,7 +62,7 @@ def run_three_round_example() -> list[dict]:
         evidence = elastic.investigate(decision.choice or "conclude", iteration)
         state["findings"].append(evidence["finding"])
         state["completed_checks"].append(evidence["completed"])
-        rounds.append({"round": iteration, "jev": decision.to_dict(), "evidence": evidence})
+        rounds.append({"round": iteration, "jev": decision.to_dict(), "evidence": evidence, "compact_state": dict(state)})
     return rounds
 
 

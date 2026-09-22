@@ -36,7 +36,7 @@ def test_laya_device_is_present_in_structured_telemetry(caplog):
 
 
 def test_cli_supports_laya_diagnostics_and_benchmark_commands():
-    args = build_parser().parse_args(["providers", "test", "laya"])
+    args = build_parser().parse_args(["providers", "test", "laya", "--config", "config/jev.yaml"])
     assert args.provider_command == "test"
     assert args.provider_name == "laya"
     args = build_parser().parse_args(["providers", "list"])

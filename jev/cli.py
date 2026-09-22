@@ -32,7 +32,7 @@ def _core(path: str | None, *, require_credentials: bool = False) -> JevCore:
 
 
 def _requested_config(args: argparse.Namespace) -> str | None:
-    return getattr(args, "config_path", None) or args.config
+    return getattr(args, "config_path", None) or getattr(args, "provider_config", None) or args.config
 
 
 def _request_args(args: argparse.Namespace) -> dict:
@@ -123,12 +123,15 @@ def build_parser() -> argparse.ArgumentParser:
     doctor.add_argument("--config", dest="config_path")
     doctor.add_argument("--network", action="store_true", help="also check provider readiness")
     providers = sub.add_parser("providers")
-    providers.add_argument("--config", dest="config_path")
+    providers.add_argument("--config", dest="provider_config")
     provider_sub = providers.add_subparsers(dest="provider_command", required=True)
     provider_test = provider_sub.add_parser("test")
     provider_test.add_argument("provider_name", nargs="?")
-    provider_sub.add_parser("list")
-    provider_sub.add_parser("list-models")
+    provider_test.add_argument("--config", dest="config_path")
+    provider_list = provider_sub.add_parser("list")
+    provider_list.add_argument("--config", dest="config_path")
+    provider_models = provider_sub.add_parser("list-models")
+    provider_models.add_argument("--config", dest="config_path")
     benchmark = sub.add_parser("benchmark")
     benchmark.add_argument("provider_name")
     benchmark.add_argument("--config", dest="config_path")

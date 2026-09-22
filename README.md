@@ -22,3 +22,26 @@ More command and endpoint examples are in [docs/usage.md](docs/usage.md).
 The reference deployment is [docker/docker-compose.example.yml](docker/docker-compose.example.yml).
 The generic skill and Elastic integration are under `skills/`, with an
 executable three-round simulation in `examples/elastic_investigation.py`.
+
+## Supported Decision Providers
+
+- TypeSafe / Jev
+- Laya Local CPU
+- OpenRouter
+- OpenAI-compatible endpoints
+
+For a local-first setup, install `jev-agent-toolkit[laya]` and route Laya to
+TypeSafe on technical failures:
+
+```yaml
+routing:
+  default: laya
+  fallback:
+    technical_error:
+      - typesafe
+    low_confidence:
+      - agent
+```
+
+See [docs/laya.md](docs/laya.md) for cache, Docker, benchmark, multilingual,
+and troubleshooting guidance.

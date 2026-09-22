@@ -64,7 +64,8 @@ class LayaLocalProvider(DecisionProvider):
             try:
                 self._model = self._loader(self.config)
                 self._load_error = None
-            except ProviderError:
+            except ProviderError as exc:
+                self._load_error = str(exc)
                 raise
             except Exception as exc:
                 self._load_error = str(exc) or type(exc).__name__
