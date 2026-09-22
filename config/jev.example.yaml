@@ -11,6 +11,16 @@ server:
       port: 8081
 
 providers:
+  laya:
+    type: laya
+    enabled: true
+    model: typed-decisions
+    device: cpu
+    preload: true
+    max_loaded_models: 2
+    cache_dir: /models
+    timeout_ms: 3000
+
   typesafe:
     type: typesafe
     enabled: true
@@ -34,9 +44,10 @@ providers:
     timeout_ms: 5000
 
 routing:
-  default: typesafe
+  default: laya
   fallback:
     technical_error:
+      - typesafe
       - openrouter
       - custom
 

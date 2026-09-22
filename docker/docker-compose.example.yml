@@ -7,11 +7,13 @@ services:
     restart: unless-stopped
     environment:
       JEV_CONFIG: /app/config/jev.yaml
+      HF_HOME: /models
       TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       CUSTOM_LLM_API_KEY: ${CUSTOM_LLM_API_KEY:-}
     volumes:
       - ../config/jev.example.yaml:/app/config/jev.yaml:ro
+      - laya-model-cache:/models
     ports:
       - "127.0.0.1:8080:8080"
       - "127.0.0.1:8081:8081"
@@ -25,3 +27,6 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+
+volumes:
+  laya-model-cache:
