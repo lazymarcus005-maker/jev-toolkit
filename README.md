@@ -17,6 +17,7 @@ python3.11 -m venv .venv
 Run the HTTP API and streamable HTTP MCP endpoint with `jev serve`; use
 `jev mcp` for STDIO MCP. Provider keys are read only from the environment.
 The generic contract is in [docs/decision-contract.md](docs/decision-contract.md).
+More command and endpoint examples are in [docs/usage.md](docs/usage.md).
 
 The reference deployment is [docker/docker-compose.example.yml](docker/docker-compose.example.yml).
 The generic skill and Elastic integration are under `skills/`, with an
