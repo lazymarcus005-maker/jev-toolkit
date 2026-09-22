@@ -1,0 +1,2 @@
+[console_scripts]
+jev = jev.cli:main

@@ -20,4 +20,4 @@ testpaths = ["tests"]
 addopts = "-q"
 
 [tool.setuptools.packages.find]
-include = ["jev*"]
+include = ["jev*", "examples*"]
