@@ -1,0 +1,27 @@
+services:
+  jev:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: jev-agent-toolkit:latest
+    restart: unless-stopped
+    environment:
+      JEV_CONFIG: /app/config/jev.yaml
+      TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      CUSTOM_LLM_API_KEY: ${CUSTOM_LLM_API_KEY:-}
+    volumes:
+      - ../config/jev.example.yaml:/app/config/jev.yaml:ro
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:8081:8081"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "jev", "health", "--url", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

@@ -1,0 +1,54 @@
+server:
+  http:
+    enabled: true
+    host: 0.0.0.0
+    port: 8080
+  mcp:
+    stdio: true
+    streamable_http:
+      enabled: true
+      host: 0.0.0.0
+      port: 8081
+
+providers:
+  typesafe:
+    type: typesafe
+    enabled: true
+    base_url: https://api.typesafe.ai
+    api_key_env: TYPESAFE_API_KEY
+    model: auto
+    timeout_ms: 3000
+  openrouter:
+    type: openai-compatible
+    enabled: false
+    base_url: https://openrouter.ai/api/v1
+    api_key_env: OPENROUTER_API_KEY
+    model: CHANGE_ME
+    timeout_ms: 5000
+  custom:
+    type: openai-compatible
+    enabled: false
+    base_url: http://host.docker.internal:4000/v1
+    api_key_env: CUSTOM_LLM_API_KEY
+    model: CHANGE_ME
+    timeout_ms: 5000
+
+routing:
+  default: typesafe
+  fallback:
+    technical_error:
+      - openrouter
+      - custom
+
+decision_policy:
+  default_accept_threshold: 0.70
+  on_invalid_choice: agent
+  on_timeout: agent
+  on_provider_error: agent
+
+telemetry:
+  enabled: true
+  log_decisions: true
+  log_latency: true
+  log_confidence: true
+  log_raw_state: false

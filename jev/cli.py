@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import sys
+import urllib.request
 from pathlib import Path
 
 from .config import load_config
@@ -59,10 +60,17 @@ def build_parser() -> argparse.ArgumentParser:
     rank.add_argument("--items", required=True, help="JSON items file")
     validate = sub.add_parser("config-validate")
     validate.add_argument("--require-credentials", action="store_true")
+    config = sub.add_parser("config")
+    config_sub = config.add_subparsers(dest="config_command", required=True)
+    config_validate = config_sub.add_parser("validate")
+    config_validate.add_argument("--require-credentials", action="store_true")
+    config_validate.add_argument("--config", dest="config_path")
     doctor = sub.add_parser("doctor")
     doctor.add_argument("--network", action="store_true", help="also check provider readiness")
     providers = sub.add_parser("providers")
     providers.add_argument("action", choices=("test", "list-models"))
+    health = sub.add_parser("health")
+    health.add_argument("--url", default="http://127.0.0.1:8080/health")
     serve = sub.add_parser("serve")
     serve.add_argument("--no-mcp", action="store_true")
     mcp = sub.add_parser("mcp")
@@ -73,8 +81,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        if args.command == "config-validate":
-            config = load_config(_config_path(args.config))
+        if args.command == "config-validate" or (args.command == "config" and args.config_command == "validate"):
+            config = load_config(_config_path(getattr(args, "config_path", None) or args.config))
             problems = config.validate(require_credentials=args.require_credentials)
             if problems:
                 raise ConfigurationError("; ".join(problems))
@@ -92,6 +100,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "doctor":
             print(json.dumps({"config": "ok", "ready": core.ready() if args.network else None}))
             return 0 if not args.network or core.ready() else 1
+        if args.command == "health":
+            with urllib.request.urlopen(args.url, timeout=3) as response:
+                value = json.load(response)
+            print(json.dumps(value))
+            return 0 if value.get("status") == "ok" else 1
         if args.command == "providers":
             if args.action == "test":
                 print(json.dumps({name: provider.health() for name, provider in core.providers.items()}))
