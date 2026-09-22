@@ -189,7 +189,10 @@ def main(argv: list[str] | None = None) -> int:
                 statuses = {}
                 for name, provider_config in core.config.providers.items():
                     provider = core.providers.get(name)
-                    statuses[name] = {"status": "disabled", "model": provider_config.model} if provider is None else provider.status()
+                    if provider is None:
+                        statuses[name] = {"enabled": False, "status": "disabled", "model": provider_config.model}
+                    else:
+                        statuses[name] = {"enabled": True, **provider.status()}
                 print(json.dumps(statuses))
             else:
                 print(json.dumps({name: provider.list_models() for name, provider in core.providers.items()}))
