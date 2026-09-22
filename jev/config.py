@@ -19,6 +19,10 @@ class ProviderConfig:
     api_key_env: str | None = None
     model: str = ""
     timeout_ms: int = 5000
+    device: str = "cpu"
+    preload: bool = False
+    max_loaded_models: int = 1
+    cache_dir: str | None = None
 
     @property
     def api_key(self) -> str | None:
@@ -74,17 +78,38 @@ class JevConfig:
         if not 0 <= self.default_accept_threshold <= 1:
             problems.append("decision_policy.default_accept_threshold must be between 0 and 1")
         for provider in self.providers.values():
-            if provider.enabled and not provider.base_url:
+            if provider.enabled and provider.type != "laya" and not provider.base_url:
                 problems.append(f"enabled provider has no base_url: {provider.name}")
-            if provider.enabled and provider.type not in {"typesafe", "openai-compatible"}:
+            if provider.enabled and provider.type not in {"typesafe", "openai-compatible", "laya"}:
                 problems.append(f"unsupported provider type: {provider.type}")
+            if provider.type == "laya":
+                if provider.device != "cpu":
+                    problems.append("laya supports only device: cpu in V1")
+                if provider.model not in {"typed-decisions", "multilingual", "router"}:
+                    problems.append(f"unsupported laya model: {provider.model}")
+                if provider.max_loaded_models < 1:
+                    problems.append("laya max_loaded_models must be at least 1")
+            if provider.timeout_ms <= 0:
+                problems.append(f"provider timeout_ms must be positive: {provider.name}")
             if require_credentials and provider.enabled and provider.api_key_env and not provider.api_key:
                 problems.append(f"missing environment variable: {provider.api_key_env}")
         return problems
 
 
 def _as_bool(value: Any, default: bool) -> bool:
-    return default if value is None else bool(value)
+    if value is None:
+        return default
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    return bool(value)
+
+
+def _env_or(value: Any, env_name: str, default: Any = None) -> Any:
+    return os.environ.get(env_name, value if value is not None else default)
 
 
 def load_config(path: str | Path) -> JevConfig:
@@ -106,14 +131,19 @@ def load_config(path: str | Path) -> JevConfig:
     for name, value in (raw.get("providers", {}) or {}).items():
         if not isinstance(value, dict):
             raise ConfigurationError(f"provider config must be an object: {name}")
+        is_laya = value.get("type") == "laya"
         providers[name] = ProviderConfig(
             name=name,
             type=value.get("type", ""),
             enabled=_as_bool(value.get("enabled"), True),
             base_url=str(value.get("base_url", "")).rstrip("/"),
             api_key_env=value.get("api_key_env"),
-            model=str(value.get("model", "")),
+            model=str(_env_or(value.get("model"), "LAYA_MODEL", "typed-decisions") if is_laya else value.get("model", "")),
             timeout_ms=int(value.get("timeout_ms", 5000)),
+            device=str(_env_or(value.get("device"), "LAYA_DEVICE", "cpu") if is_laya else value.get("device", "cpu")),
+            preload=_as_bool(_env_or(value.get("preload"), "LAYA_PRELOAD", False) if is_laya else value.get("preload"), False),
+            max_loaded_models=int(_env_or(value.get("max_loaded_models"), "LAYA_MAX_LOADED_MODELS", 1) if is_laya else value.get("max_loaded_models", 1)),
+            cache_dir=_env_or(value.get("cache_dir"), "LAYA_CACHE_DIR") if is_laya else value.get("cache_dir"),
         )
     routing_raw = raw.get("routing", {}) or {}
     fallback_raw = routing_raw.get("fallback", {}) or {}

@@ -28,5 +28,14 @@ class DecisionProvider(ABC):
     def health(self) -> bool:
         return True
 
+    def status(self) -> dict[str, Any]:
+        return {"status": "ready" if self.health() else "not_ready", "model": self.model}
+
+    def diagnostics(self) -> dict[str, Any]:
+        return {"status": "ok" if self.health() else "error", "model": self.model}
+
+    def telemetry_context(self) -> dict[str, Any]:
+        return {}
+
     def list_models(self) -> list[dict[str, Any]]:
         return []

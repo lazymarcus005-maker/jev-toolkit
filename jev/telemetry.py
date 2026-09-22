@@ -15,7 +15,7 @@ class Telemetry:
     def decision(self, **fields: Any) -> None:
         if not self.config.enabled:
             return
-        allowed = {"decision", "provider", "model", "latency_ms", "confidence", "selected_choice", "candidate_count", "fallback_used", "fallback_reason", "agent_override", "workflow_id", "skill_name", "iteration"}
+        allowed = {"decision", "provider", "model", "device", "latency_ms", "confidence", "selected_choice", "candidate_count", "fallback_used", "fallback_reason", "agent_override", "workflow_id", "skill_name", "iteration"}
         event = {key: value for key, value in fields.items() if key in allowed}
         if not self.config.log_decisions:
             event.pop("decision", None)

@@ -47,6 +47,10 @@ class JevCore:
 
     def _emit(self, request: DecisionRequest, result: DecisionResult) -> None:
         metadata = request.metadata
+        provider_context = {}
+        if result.provider and result.provider in self.providers:
+            context_method = getattr(self.providers[result.provider], "telemetry_context", None)
+            provider_context = context_method() if context_method else {}
         self.telemetry.decision(
             decision=result.decision,
             provider=result.provider,
@@ -61,6 +65,7 @@ class JevCore:
             workflow_id=metadata.get("workflow_id"),
             skill_name=metadata.get("skill"),
             iteration=metadata.get("iteration"),
+            **provider_context,
         )
 
     def decide(self, request: DecisionRequest) -> DecisionResult:
@@ -93,8 +98,18 @@ class JevCore:
         return self._fallback(request, "provider_error:" + ",".join(errors), started)
 
     def ready(self) -> bool:
-        default = self.providers.get(self.config.routing.default)
-        return default is not None and bool(default.health())
+        ready, _ = self.readiness()
+        return ready
+
+    def readiness(self) -> tuple[bool, dict[str, dict]]:
+        statuses: dict[str, dict] = {}
+        for name, provider in self.providers.items():
+            try:
+                statuses[name] = provider.status()
+            except Exception as exc:
+                statuses[name] = {"status": "not_ready", "error": str(exc)}
+        default = statuses.get(self.config.routing.default, {})
+        return default.get("status") in {"ready", "lazy"}, statuses
 
     def evaluate(self, request: DecisionRequest) -> DecisionResult:
         return self.decide(request)

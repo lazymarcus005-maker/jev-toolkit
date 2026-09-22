@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from .config import JevConfig
 from .errors import ConfigurationError
-from .providers import OpenAICompatibleProvider, OpenRouterProvider, TypeSafeProvider
+from .providers import LayaLocalProvider, OpenAICompatibleProvider, OpenRouterProvider, TypeSafeProvider
 
 
 def build_providers(config: JevConfig) -> dict[str, object]:
@@ -12,6 +12,8 @@ def build_providers(config: JevConfig) -> dict[str, object]:
             continue
         if provider_config.type == "typesafe":
             result[name] = TypeSafeProvider(provider_config)
+        elif provider_config.type == "laya":
+            result[name] = LayaLocalProvider(provider_config)
         elif provider_config.type == "openai-compatible":
             result[name] = OpenRouterProvider(provider_config) if name == "openrouter" else OpenAICompatibleProvider(provider_config)
         else:

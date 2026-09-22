@@ -26,8 +26,8 @@ class _Handler(BaseHTTPRequestHandler):
         if self.path == "/health":
             self._send(200, {"status": "ok"})
         elif self.path == "/ready":
-            ready = self.core.ready()
-            self._send(200 if ready else 503, {"status": "ready" if ready else "not_ready"})
+            ready, providers = self.core.readiness()
+            self._send(200 if ready else 503, {"status": "ready" if ready else "not_ready", "ready": ready, "providers": providers})
         elif self.path == "/v1/providers":
             self._send(200, {"providers": sorted(self.core.providers)})
         elif self.path == "/v1/models":
