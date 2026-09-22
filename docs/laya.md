@@ -63,7 +63,8 @@ technical fallback results.
 
 Docker sets `HF_HOME=/models` and mounts the named `laya-model-cache` volume.
 This keeps model weights across container restarts without making the root
-filesystem writable. A missing model cache may make `/ready` return 503 while
+filesystem writable. The Docker build pins a PyTorch CPU wheel and installs no
+CUDA/NVIDIA packages. A missing model cache may make `/ready` return 503 while
 the model downloads; the response includes a safe provider diagnostic.
 
 ## Commands and benchmark

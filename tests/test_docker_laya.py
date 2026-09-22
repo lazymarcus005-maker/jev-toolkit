@@ -7,7 +7,10 @@ ROOT = Path(__file__).parents[1]
 def test_docker_build_installs_laya_as_an_optional_cpu_extra():
     dockerfile = (ROOT / "Dockerfile").read_text()
     assert "INSTALL_LAYA" in dockerfile
-    assert ".[laya]" in dockerfile
+    assert '"laya==${LAYA_VERSION}"' in dockerfile
+    assert "download.pytorch.org/whl/cpu" in dockerfile
+    assert "TORCH_CPU_VERSION" in dockerfile
+    assert "cuda" not in dockerfile.lower()
     assert "HF_HOME=/models" in dockerfile
     assert "USER jev" in dockerfile
 
