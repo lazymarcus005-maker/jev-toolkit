@@ -101,7 +101,16 @@ class OpenAICompatibleProvider(DecisionProvider):
         return RankResult(normalized, result.get("model") or self.config.model)
 
     def health(self) -> bool:
-        return bool(self.config.base_url and self.config.model and self.config.api_key)
+        if not (self.config.base_url and self.config.model and self.config.api_key):
+            return False
+        # A models-list ping still succeeds on gateways that reject inference
+        # (auth, funding, model access), so probe a minimal completion instead.
+        body = {"model": self.config.model, "max_tokens": 1, "messages": [{"role": "user", "content": "ping"}]}
+        try:
+            request_json(f"{self.config.base_url}/chat/completions", method="POST", headers=self._headers(), payload=body, timeout_ms=self.config.timeout_ms)
+            return True
+        except Exception:
+            return False
 
 
 class OpenRouterProvider(OpenAICompatibleProvider):

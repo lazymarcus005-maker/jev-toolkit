@@ -85,10 +85,9 @@ def _benchmark(provider_name: str, provider: object, runs: int, warmup: int) -> 
     values = sorted(latencies)
     percentile = lambda fraction: values[max(0, min(len(values) - 1, math.ceil(fraction * len(values)) - 1))]
     config = getattr(provider, "config", None)
-    return {
+    result = {
         "provider": provider_name,
         "model": getattr(provider, "model", None),
-        "device": getattr(config, "device", None),
         "runs": runs,
         "warmup": warmup,
         "latency_ms": {
@@ -100,6 +99,10 @@ def _benchmark(provider_name: str, provider: object, runs: int, warmup: int) -> 
         },
         "success_rate": successes / runs,
     }
+    # device is a Laya-only field; remote providers have no meaningful value.
+    if config is not None and getattr(config, "type", "") == "laya":
+        result["device"] = getattr(config, "device", None)
+    return result
 
 
 def build_parser() -> argparse.ArgumentParser:
